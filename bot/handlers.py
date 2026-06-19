@@ -15,6 +15,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         logging.info(f"Start command received from user: {user_id}")
         
+        # Admin quick access
+        if str(user_id) == ADMIN_CHAT_ID.strip() and context.user_data.get('is_admin_auth'):
+            await update.message.reply_text("🏠 *Admin Main Menu*", reply_markup=get_admin_main_keyboard(), parse_mode='Markdown')
+            return ADMIN_PANEL
+
         conn = get_db_connection()
         user = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
         
@@ -163,6 +168,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     
     if data == "admin_panel":
+        if context.user_data.get('is_admin_auth'):
+            return await admin_menu_callback(update, context)
         await query.message.reply_text("🔑 Please enter the Admin Secret Key:")
         return ADMIN_AUTH
     
@@ -289,12 +296,17 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if user_id != clean_admin_chat_id and chat_id != clean_admin_chat_id:
         return
+    
+    if context.user_data.get('is_admin_auth'):
+        await update.message.reply_text("🏠 *Admin Main Menu*", reply_markup=get_admin_main_keyboard(), parse_mode='Markdown')
+        return ADMIN_PANEL
         
     await update.message.reply_text("🔑 Please enter the Admin Secret Key:")
     return ADMIN_AUTH
 
 async def admin_auth_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text == ADMIN_SECRET:
+        context.user_data['is_admin_auth'] = True
         await update.message.reply_text("✅ Access Granted to Admin Panel", reply_markup=get_admin_main_keyboard())
         return ADMIN_PANEL
     else:
@@ -466,6 +478,9 @@ async def file_manage_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         )
     elif data.startswith("fset_timer_"):
         await query.message.edit_text("⏱ Select Timer for this file:", reply_markup=get_timer_options_keyboard(db_id))
+        return ADMIN_PANEL
+    elif data.startswith("fset_back_"):
+        return await admin_menu_callback(update, context)
     elif data.startswith("fset_sharing_"):
         new_val = 0 if file['protect_content'] else 1
         conn.execute("UPDATE files SET protect_content = ? WHERE id = ?", (new_val, db_id))
@@ -474,6 +489,7 @@ async def file_manage_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.message.edit_reply_markup(reply_markup=get_file_settings_keyboard(db_id, file['cooldown_seconds'], file['protect_content'], file['auto_delete_seconds']))
     elif data.startswith("fset_autodel_"):
         await query.message.edit_text("🗑 Select Auto-Delete time:", reply_markup=get_autodelete_options_keyboard(db_id))
+        return ADMIN_PANEL
     elif data.startswith("fset_rename_"):
         await query.message.edit_text(f"✏️ Current Caption: `{file['caption']}`\n\nSend the new caption:")
         context.user_data['editing_file_id'] = db_id

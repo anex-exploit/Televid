@@ -83,7 +83,8 @@ def get_file_settings_keyboard(file_id, cooldown, sharing, auto_delete):
             InlineKeyboardButton("⬇️ Down", callback_data=f"fset_down_{file_id}"),
             InlineKeyboardButton("🗑 Delete", callback_data=f"fset_delete_{file_id}")
         ],
-        [InlineKeyboardButton("🔙 Back to List", callback_data="admin_file_list")]
+        [InlineKeyboardButton("🔙 Back to List", callback_data="admin_file_list")],
+        [InlineKeyboardButton("🏠 Back to Admin Panel", callback_data="admin_panel")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
