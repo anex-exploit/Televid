@@ -48,6 +48,8 @@ def main():
                 CallbackQueryHandler(file_manage_callback, pattern="^fmanage_|^fset_"),
                 CallbackQueryHandler(timer_setting_callback, pattern="^time_|^gtime_"),
                 CallbackQueryHandler(autodelete_setting_callback, pattern="^adel_"),
+                CallbackQueryHandler(admin_sms_handler, pattern="^admin_sms_"),
+                CallbackQueryHandler(admin_callback, pattern="^approve_|^reject_|^msg_user_|^admin_panel$")
             ],
             UPLOAD_FILE: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.Document.ALL, admin_file_upload_handler)],
             SET_COOLDOWN: [MessageHandler(filters.TEXT & ~filters.COMMAND, custom_timer_handler)],

