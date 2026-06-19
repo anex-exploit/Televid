@@ -185,7 +185,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def get_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # This can be triggered by Reply Button "📥 Get Video" or Inline Button
+    # Answer the callback query to remove the loading state
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
     user_id = update.effective_user.id
     
     conn = get_db_connection()
@@ -219,24 +223,33 @@ async def get_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             minutes, seconds = divmod(remainder, 60)
             
             time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-            hindi_text = f"\n\n*Aapko agli video {time_str} minutes me milegi.*\n*कृपया प्रतीक्षा करें!*"
+            hindi_text = f"\n\n*Aapko agli video {time_str} minutes me milegi.*\n\n*कृपया प्रतीक्षा करें!*"
             
             # Offer Link Sharing to skip timer
             skip_link = conn.execute("SELECT value FROM settings WHERE key = 'skip_timer_link'").fetchone()['value']
-            await update.effective_message.reply_text(
-                f"⏳ *Next video in:* {time_str}{hindi_text}\n\n"
-                f"🚀 *Want to skip the timer?*\nShare this link with 5 friends: {skip_link}",
-                parse_mode='Markdown'
-            )
+            
+            msg_text = f"⏳ *Next video in:* {time_str}{hindi_text}\n\n🚀 *Want to skip the timer?*\nShare this link with 5 friends: {skip_link}"
+            
+            if query:
+                await query.message.reply_text(msg_text, parse_mode='Markdown')
+            else:
+                await update.message.reply_text(msg_text, parse_mode='Markdown')
             return
 
     # Send File
     try:
+        # For better UX, we attach the button directly to the message if it's NOT auto-deleting
+        # If it IS auto-deleting, we don't attach it because the button will disappear with the message
+        reply_markup = None
+        if file['auto_delete_seconds'] <= 0:
+            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Get Again / Next", callback_data="get_file")]])
+
         params = {
             "chat_id": user_id,
             "caption": file['caption'],
             "protect_content": bool(file['protect_content']),
-            "parse_mode": 'Markdown'
+            "parse_mode": 'Markdown',
+            "reply_markup": reply_markup
         }
         
         if file['file_type'] == 'photo':
@@ -263,13 +276,6 @@ async def get_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                 except: pass
             asyncio.create_task(delete_after())
-        else:
-            # If no auto-delete, still show a "Get Next" or "Get Again" button for better UX
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="Enjoy your video! 🍿\nTap below to get another one when ready.",
-                reply_markup=get_get_file_keyboard()
-            )
 
     except Exception as e:
         await update.effective_message.reply_text(f"Error sending file: {str(e)}")
