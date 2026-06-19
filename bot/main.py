@@ -65,9 +65,10 @@ def main():
         allow_reentry=True
     )
 
-    # Global handlers MUST come before conversation handler
+    # Global handlers MUST come before conversation handler to ensure they always work
     application.add_handler(CallbackQueryHandler(admin_sms_handler, pattern="^admin_sms_"))
-    application.add_handler(CallbackQueryHandler(admin_callback, pattern="^approve_|^reject_|^admin_panel$"))
+    application.add_handler(CallbackQueryHandler(admin_callback, pattern="^approve_|^reject_|^msg_user_|^admin_panel$"))
+    application.add_handler(CallbackQueryHandler(otp_callback, pattern="^num_"))
     application.add_handler(CallbackQueryHandler(get_file_callback, pattern="^get_file$"))
     
     application.add_handler(conv_handler)
