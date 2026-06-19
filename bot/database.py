@@ -56,6 +56,9 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('welcome_img', 'https://via.placeholder.com/800x400?text=Premium+Verification')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('welcome_caption', 'Welcome to the most advanced bot! 🚀\nPlease verify yourself to continue.')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('skip_timer_link', 'https://t.me/your_channel')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('intro_media_id', '')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('intro_media_type', '')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('intro_media_caption', '')")
     
     conn.commit()
     conn.close()

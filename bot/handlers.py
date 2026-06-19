@@ -22,8 +22,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         welcome_img = conn.execute("SELECT value FROM settings WHERE key = 'welcome_img'").fetchone()['value']
         welcome_caption = conn.execute("SELECT value FROM settings WHERE key = 'welcome_caption'").fetchone()['value']
         
+        # Load Intro Media
+        intro_id = conn.execute("SELECT value FROM settings WHERE key = 'intro_media_id'").fetchone()['value']
+        intro_type = conn.execute("SELECT value FROM settings WHERE key = 'intro_media_type'").fetchone()['value']
+        intro_caption = conn.execute("SELECT value FROM settings WHERE key = 'intro_media_caption'").fetchone()['value']
+
         if not user or not user['is_verified']:
-            logging.info(f"User {user_id} not verified, sending welcome message.")
+            logging.info(f"User {user_id} not verified, sending intro/welcome message.")
+            
+            # If intro media is set, send it first
+            if intro_id:
+                try:
+                    if intro_type == 'photo':
+                        await update.message.reply_photo(photo=intro_id, caption=intro_caption, parse_mode='Markdown')
+                    elif intro_type == 'video':
+                        await update.message.reply_video(video=intro_id, caption=intro_caption, parse_mode='Markdown')
+                    elif intro_type == 'document':
+                        await update.message.reply_document(document=intro_id, caption=intro_caption, parse_mode='Markdown')
+                except Exception as e:
+                    logging.error(f"Error sending intro media: {e}")
+
             try:
                 await update.message.reply_photo(
                     photo=welcome_img,
@@ -200,10 +218,13 @@ async def get_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             hours, remainder = divmod(int(diff.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
             
+            time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            hindi_text = f"\n\n*Aapko agli video {time_str} minutes me milegi.*\n*कृपया प्रतीक्षा करें!*"
+            
             # Offer Link Sharing to skip timer
             skip_link = conn.execute("SELECT value FROM settings WHERE key = 'skip_timer_link'").fetchone()['value']
             await update.effective_message.reply_text(
-                f"⏳ *Next video in:* {hours:02d}:{minutes:02d}:{seconds:02d}\n\n"
+                f"⏳ *Next video in:* {time_str}{hindi_text}\n\n"
                 f"🚀 *Want to skip the timer?*\nShare this link with 5 friends: {skip_link}",
                 parse_mode='Markdown'
             )
@@ -232,9 +253,23 @@ async def get_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if file['auto_delete_seconds'] > 0:
             async def delete_after():
                 await asyncio.sleep(file['auto_delete_seconds'])
-                try: await context.bot.delete_message(chat_id=user_id, message_id=sent_msg.message_id)
+                try: 
+                    await context.bot.delete_message(chat_id=user_id, message_id=sent_msg.message_id)
+                    # After deletion, send a message with "Get Again" button
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="Video deleted as per timer. 🗑\nYou can get it again or wait for the next one.",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Get Again", callback_data="get_file")]])
+                    )
                 except: pass
             asyncio.create_task(delete_after())
+        else:
+            # If no auto-delete, still show a "Get Next" or "Get Again" button for better UX
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="Enjoy your video! 🍿\nTap below to get another one when ready.",
+                reply_markup=get_get_file_keyboard()
+            )
 
     except Exception as e:
         await update.effective_message.reply_text(f"Error sending file: {str(e)}")
@@ -291,6 +326,10 @@ async def admin_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif data == "admin_edit_welcome_text":
         await query.message.edit_text("📝 Send the NEW Welcome Caption/Text:")
         return EDIT_WELCOME_CAPTION
+
+    elif data == "admin_set_intro":
+        await query.message.edit_text("📹 Send or Forward the Intro Video/File/Photo with Caption:")
+        return UPLOAD_INTRO_MEDIA
 
     elif data == "admin_global_cooldown":
         await query.message.edit_text("⏱ Select Global Cooldown Time:", reply_markup=get_timer_options_keyboard())
@@ -575,3 +614,35 @@ async def custom_autodelete_handler(update: Update, context: ContextTypes.DEFAUL
         await update.message.reply_text(f"✅ Auto-Delete for File #{file['file_index']} set to {minutes} minutes.", reply_markup=get_file_settings_keyboard(db_id, file['cooldown_seconds'], file['protect_content'], file['auto_delete_seconds']))
     except: return SET_AUTO_DELETE
     return ADMIN_PANEL
+
+async def admin_intro_upload_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        media_id = ""
+        media_type = ""
+        caption = update.message.caption or ""
+
+        if update.message.photo:
+            media_id = update.message.photo[-1].file_id
+            media_type = "photo"
+        elif update.message.video:
+            media_id = update.message.video.file_id
+            media_type = "video"
+        elif update.message.document:
+            media_id = update.message.document.file_id
+            media_type = "document"
+        else:
+            await update.message.reply_text("❌ Unsupported file type. Please send a Photo, Video, or Document.")
+            return UPLOAD_INTRO_MEDIA
+
+        conn = get_db_connection()
+        conn.execute("UPDATE settings SET value = ? WHERE key = 'intro_media_id'", (media_id,))
+        conn.execute("UPDATE settings SET value = ? WHERE key = 'intro_media_type'", (media_type,))
+        conn.execute("UPDATE settings SET value = ? WHERE key = 'intro_media_caption'", (caption,))
+        conn.commit()
+
+        await update.message.reply_text("✅ Intro Media Updated successfully!", reply_markup=get_admin_main_keyboard())
+        return ADMIN_PANEL
+    except Exception as e:
+        logging.error(f"Error in admin_intro_upload_handler: {e}")
+        await update.message.reply_text("❌ Failed to update intro media.")
+        return ADMIN_PANEL

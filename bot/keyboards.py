@@ -63,6 +63,7 @@ def get_admin_main_keyboard():
             InlineKeyboardButton("🖼 Edit Welcome Img", callback_data="admin_edit_welcome_img"),
             InlineKeyboardButton("📝 Edit Welcome Text", callback_data="admin_edit_welcome_text")
         ],
+        [InlineKeyboardButton("📹 Set Intro Media", callback_data="admin_set_intro")],
         [InlineKeyboardButton("⏱ Global Cooldown", callback_data="admin_global_cooldown")],
         [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")]
     ]
