@@ -464,7 +464,18 @@ async def file_manage_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     data = query.data
     parts = data.split("_")
-    db_id = int(parts[2])
+    
+    # Correctly parse db_id based on callback format
+    # fmanage_{id} -> parts[1]
+    # fset_{action}_{id} -> parts[2]
+    try:
+        if data.startswith("fmanage_"):
+            db_id = int(parts[1])
+        else:
+            db_id = int(parts[2])
+    except (IndexError, ValueError):
+        logging.error(f"Failed to parse db_id from callback data: {data}")
+        return ADMIN_PANEL
     
     conn = get_db_connection()
     file = conn.execute("SELECT * FROM files WHERE id = ?", (db_id,)).fetchone()
@@ -612,6 +623,7 @@ async def custom_timer_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def autodelete_setting_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
     data = query.data
     parts = data.split("_")
     db_id, val = int(parts[1]), parts[2]
